@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>1. Dwarf at the Bar</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+
+        #main-layout {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            gap: 40px;
+            margin-top: 30px;
+            flex-wrap: wrap;
+        }
+
+        #bar-image {
+            max-width: 300px;
+            height: auto;
+            border-radius: 10px;
+        }
+
+        #game-container {
+            text-align: left;
+        }
+
+        #restart {
+            display: none;
+        }
+
+        #leaderboard-container {
+            margin-top: 30px;
+            display: none;
+        }
+
+        .nav-arrow {
+            position: fixed;
+            bottom: 30px;
+            font-size: 2.5rem;
+            color: white;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            text-align: center;
+            line-height: 50px;
+            text-decoration: none;
+            transition: background 0.2s;
+            z-index: 999;
+        }
+
+        .nav-arrow:hover {
+            background: rgba(0, 0, 0);
+        }
+
+        .nav-arrow.left {
+            left: 30px;
+        }
+
+        .nav-arrow.right {
+            right: 30px;
+        }
+    </style>
+</head>
+<body>
+    <h1>1. Dwarf at the Bar</h1>
+
+    <div id="main-layout">
+        <img src="bar.png" alt="Bar image" id="bar-image">
+        <div id="game-container">
+            <p>Wallet: $<span id="wallet">500</span></p>
+            <p>Current Mug Price: $<span id="mug-price">8</span></p>
+            <p>Satiation: <span id="satiation">0</span></p>
+            <p>Time Left: <span id="timer">60</span> seconds</p>
+            <button id="buy" onclick="buyMead()">Order Mead</button>
+            <p id="final-score"></p>
+            <button id="restart" onclick="startGame()">Restart Game</button>
+            <div id="leaderboard-container">
+                <h2>Leaderboard</h2>
+                <div id="score-entry" style="display: none;">
+                    <input type="text" id="player-name" placeholder="Enter your name">
+                    <button onclick="saveScore()">Submit Score</button>
+                </div>
+                <ul id="leaderboard"></ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCRBbr6JLQ3rDB2J7-Lx-gEcgx_KQm06kA",
+            authDomain: "dwarf-96fd3.firebaseapp.com",
+            projectId: "dwarf-96fd3",
+            storageBucket: "dwarf-96fd3.firebasestorage.app",
+            messagingSenderId: "719936091114",
+            appId: "1:719936091114:web:9490049b964a5ba0cab893",
+            measurementId: "G-786DJ77F8G"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        let wallet, satiation, timeLeft, mugPrice, gameInterval, priceInterval, finalScore;
+        let meadSatiation;
+
+        function weightedRandomPrice() {
+            let prices = [3, 4, 4, 5, 5, 6, 6, 6, 7, 7, 7, 7, 8, 8, 8, 8, 9, 9, 10, 10, 11, 11, 12];
+            return prices[Math.floor(Math.random() * prices.length)];
+        }
+
+        function updatePrice() {
+            let basePrice = weightedRandomPrice();
+            let priceModifier = meadSatiation === 6 ? 1 : meadSatiation === 7 ? 2 : 0;
+            mugPrice = basePrice + priceModifier;
+            document.getElementById("mug-price").textContent = mugPrice;
+        }
+
+        function buyMead() {
+            if (wallet >= mugPrice) {
+                wallet -= mugPrice;
+                satiation += meadSatiation;
+                document.getElementById("wallet").textContent = wallet;
+                document.getElementById("satiation").textContent = satiation;
+            }
+        }
+
+        function updateTimer() {
+            timeLeft--;
+            document.getElementById("timer").textContent = timeLeft;
+            if (timeLeft <= 0) {
+                endGame();
+            }
+        }
+
+        function endGame() {
+            clearInterval(gameInterval);
+            clearInterval(priceInterval);
+            document.getElementById("buy").disabled = true;
+            finalScore = parseInt(satiation) + parseInt(wallet);
+            document.getElementById("final-score").textContent = `Final Score: Wallet ($${wallet}) + Satiation (${satiation}) = ${finalScore}`;
+            document.getElementById("restart").style.display = "inline";
+            document.getElementById("leaderboard-container").style.display = "block";
+            document.getElementById("score-entry").style.display = "block";
+            showLeaderboard();
+        }
+
+        function startGame() {
+            wallet = 500;
+            satiation = 0;
+            timeLeft = 60;
+            meadSatiation = [5, 6, 7][Math.floor(Math.random() * 3)];
+            console.log("Mead increases satiation by:", meadSatiation);
+
+            document.getElementById("wallet").textContent = wallet;
+            document.getElementById("satiation").textContent = satiation;
+            document.getElementById("timer").textContent = timeLeft;
+            document.getElementById("final-score").textContent = "";
+            document.getElementById("buy").disabled = false;
+            document.getElementById("restart").style.display = "none";
+            document.getElementById("leaderboard-container").style.display = "none";
+            document.getElementById("score-entry").style.display = "none";
+
+            updatePrice();
+            gameInterval = setInterval(updateTimer, 1000);
+            priceInterval = setInterval(updatePrice, 2000);
+        }
+
+        async function saveScore() {
+            const name = document.getElementById("player-name").value;
+            if (!name) return;
+
+            await addDoc(collection(db, "leaderboard"), {
+                name,
+                score: finalScore,
+                timestamp: new Date()
+            });
+
+            document.getElementById("score-entry").style.display = "none";
+            showLeaderboard();
+        }
+
+        async function showLeaderboard() {
+            const list = document.getElementById("leaderboard");
+            list.innerHTML = "";
+
+            const q = query(collection(db, "leaderboard"), orderBy("score", "desc"), limit(10));
+            const querySnapshot = await getDocs(q);
+
+            let index = 1;
+            querySnapshot.forEach((doc) => {
+                const entry = doc.data();
+                const score = parseInt(entry.score);
+                const li = document.createElement("li");
+                li.textContent = `${index}. ${entry.name}: ${isNaN(score) ? 0 : score}`;
+                list.appendChild(li);
+                index++;
+            });
+        }
+
+        window.buyMead = buyMead;
+        window.startGame = startGame;
+        window.saveScore = saveScore;
+
+        startGame();
+    </script>
+
+    <a class="nav-arrow left" href="cover.html">&#8592;</a>
+    <a class="nav-arrow right" href="house-repairs.html">&#8594;</a>
+</body>
+</html>

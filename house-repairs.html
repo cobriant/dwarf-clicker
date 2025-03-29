@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>2. Dwarf's House Repairs</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background-color: white;
+      color: black;
+      padding: 20px;
+    }
+
+    #main-layout {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 40px;
+      margin-top: 30px;
+      flex-wrap: wrap;
+    }
+
+    #house-image {
+      max-width: 300px;
+      height: auto;
+      border-radius: 10px;
+    }
+
+    .game-box {
+      text-align: left;
+      max-width: 600px;
+    }
+
+    .bar {
+      height: 30px;
+      background: #eee;
+      border: 1px solid #999;
+      margin-bottom: 10px;
+    }
+
+    .progress {
+      height: 100%;
+      width: 0%;
+      background: #444;
+    }
+
+    button {
+      padding: 8px 12px;
+      margin: 5px;
+      background: black;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
+    #restart-button {
+      display: none;
+    }
+
+    #leaderboard-container {
+      display: none;
+      margin-top: 30px;
+    }
+
+    #leaderboard-list {
+      list-style: none;
+      padding: 0;
+    }
+
+    .nav-arrow {
+      position: fixed;
+      bottom: 30px;
+      font-size: 2.5rem;
+      color: white;
+      background: rgba(0, 0, 0, 0.5);
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      text-align: center;
+      line-height: 50px;
+      text-decoration: none;
+      transition: background 0.2s;
+      z-index: 999;
+    }
+
+    .nav-arrow:hover {
+      background: rgba(0, 0, 0);
+    }
+
+    .nav-arrow.left { left: 30px; }
+    .nav-arrow.right { right: 30px; }
+  </style>
+
+  <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-analytics-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDeEn19x98HoaJucCwp_B-MxeZ6EPjFFFs",
+      authDomain: "home-repairs-3a398.firebaseapp.com",
+      projectId: "home-repairs-3a398",
+      storageBucket: "home-repairs-3a398.firebasestorage.app",
+      messagingSenderId: "171520263172",
+      appId: "1:171520263172:web:6524072494d6ef631ce151",
+      measurementId: "G-BRFCNDRYJ1"
+    };
+
+    const app = firebase.initializeApp(firebaseConfig);
+    const analytics = firebase.analytics();
+    const db = firebase.firestore();
+  </script>
+</head>
+<body>
+
+  <h1>2. Dwarf's House Repairs</h1>
+
+  <div id="main-layout">
+    <img src="house.png" alt="House image" id="house-image">
+
+    <div class="game-box">
+      <p><strong>Timer:</strong> <span id="timer">0</span> days</p>
+      <p><strong>Daily Income:</strong> $20</p>
+      <div>
+        <p>Adjust Daily Spending:</p>
+        <button onclick="adjust(1)">⬅️ More Mead</button>
+        <button onclick="adjust(-1)">More House ➡️</button>
+      </div>
+      <p>Mead per Day: $<span id="mead-value">10</span></p>
+      <p>House Repairs per Day: $<span id="house-value">10</span></p>
+      <p>Total Mead Purchased: <span id="mead-total">0</span></p>
+      <p>Total House Repairs: <span id="house-total">0</span></p>
+      <h3>Utility Progress</h3>
+      <div class="bar"><div class="progress" id="utility-bar"></div></div>
+      <p>Utility: <span id="utility-value">0</span> / 1000</p>
+      <p id="utility-gain">Your utility increased by 0 today.</p>
+      <p id="end-message"></p>
+      <button id="restart-button" onclick="location.reload()">Restart Game</button>
+
+      <div id="leaderboard-container">
+        <h2>Leaderboard</h2>
+        <ul id="leaderboard-list"></ul>
+      </div>
+    </div>
+  </div>
+
+  <a class="nav-arrow left" href="bar-clicker.html">←</a>
+  <a class="nav-arrow right" href="supply-demand.html">→</a>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      let mead = 0, house = 1, utility = 0, bonus = 0, day = 0;
+      let meadTarget = 10, houseTarget = 10, gameEnded = false;
+      let history = [], leaderboard = [];
+
+      const utilityOptions = [
+        { m: 0.25, h: 0.75 },
+        { m: 0.33, h: 0.67 },
+        { m: 0.5, h: 0.5 },
+        { m: 0.67, h: 0.33 },
+        { m: 0.75, h: 0.25 }
+      ];
+
+      const chosen = utilityOptions[Math.floor(Math.random() * utilityOptions.length)];
+      const meadExp = chosen.m;
+      const houseExp = chosen.h;
+
+      const $ = id => document.getElementById(id);
+      const updateDisplay = () => {
+        $("mead-value").textContent = meadTarget;
+        $("house-value").textContent = houseTarget;
+        $("mead-total").textContent = Math.floor(mead);
+        $("house-total").textContent = Math.floor(house);
+        $("utility-value").textContent = Math.floor(utility);
+        $("timer").textContent = day;
+        $("utility-bar").style.width = Math.min(utility / 10, 100) + "%";
+      };
+
+      const adjust = dir => {
+        meadTarget = Math.min(20, Math.max(0, meadTarget + dir));
+        houseTarget = 20 - meadTarget;
+        updateDisplay();
+      };
+
+      const runDay = () => {
+        mead += meadTarget;
+        house += houseTarget;
+        const prevUtility = utility;
+        const currUtility = Math.pow(mead, meadExp) * Math.pow(house, houseExp) + bonus;
+        const dailyGain = currUtility - prevUtility;
+        history.push({ day, gain: dailyGain });
+        if (history.length > 9) history.shift();
+
+        let bonusText = "";
+        if ((day + 1) % 10 === 0 && history.length === 9) {
+          const gains = history.map(e => e.gain);
+          const maxGain = Math.max(...gains);
+          const minGain = Math.min(...gains);
+          if (maxGain - minGain <= 0.2) {
+            const possibleBonuses = [20, 30, 40, 50, 60, 70, 80];
+            const smoothBonus = possibleBonuses[Math.floor(Math.random() * possibleBonuses.length)];
+            bonus += smoothBonus;
+            bonusText = ` ✨ Smoothness Bonus! +${smoothBonus} Utility for consistent gains!`;
+          }
+        }
+
+        utility = currUtility;
+        $("utility-gain").textContent = `Your utility increased by ${dailyGain.toFixed(2)} today.${bonusText}`;
+        day++;
+        updateDisplay();
+
+        if (Math.floor(utility) >= 1000 && !gameEnded) {
+          gameEnded = true;
+          clearInterval(gameLoop);
+          $("end-message").textContent = `✨ You reached 1000 utility in ${day} days! ✨`;
+          $("restart-button").style.display = "inline-block";
+          document.querySelectorAll("button").forEach(btn => btn.disabled = false);
+          setTimeout(() => updateLeaderboard(day), 100);
+        }
+      };
+
+      const updateLeaderboard = async (score) => {
+        const name = prompt("You made it to 1000 utility! Enter your name:");
+        if (name) {
+          await db.collection("leaderboard").add({ name, score });
+        }
+        fetchLeaderboard();
+      };
+
+      const fetchLeaderboard = async () => {
+        const snapshot = await db.collection("leaderboard").orderBy("score").limit(10).get();
+        leaderboard = snapshot.docs.map(doc => doc.data());
+        showLeaderboard();
+      };
+
+      const showLeaderboard = () => {
+        $("leaderboard-list").innerHTML = leaderboard
+          .map((e, i) => `<li>${i + 1}. ${e.name}: ${e.score} days</li>`)
+          .join('');
+        $("leaderboard-container").style.display = "block";
+      };
+
+      window.adjust = adjust;
+      const gameLoop = setInterval(runDay, 2000);
+    });
+  </script>
+</body>
+</html>

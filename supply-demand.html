@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gem Trade Clicker Game</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 2em;
+      background: #f5f5f5;
+    }
+
+    h1 {
+      text-align: center;
+    }
+
+    #main-layout {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 40px;
+      margin-top: 30px;
+      flex-wrap: wrap;
+    }
+
+    #market-image {
+      max-width: 300px;
+      height: auto;
+      border-radius: 10px;
+    }
+
+    .game-box {
+      flex: 1;
+      min-width: 300px;
+    }
+
+    button {
+      margin: 0.5em;
+      padding: 0.5em 1em;
+      font-size: 1em;
+    }
+
+    .market {
+      margin: 1em 0;
+    }
+
+    .pairs {
+      margin-top: 1em;
+    }
+
+    .pair {
+      padding: 0.25em 0;
+    }
+
+    #chartContainer {
+      margin-top: 2em;
+    }
+
+    .secondary-container {
+      display: flex;
+      gap: 2em;
+      margin-top: 1em;
+    }
+
+    .buyers, .sellers {
+      padding: 1em;
+      background: #fff;
+      border: 1px solid #ccc;
+      flex: 1;
+      min-height: 100px;
+    }
+
+    .seller {
+      margin: 0.25em 0;
+      padding: 0.25em;
+      background-color: #f0f0f0;
+      border: 1px solid #999;
+      cursor: grab;
+    }
+
+    .buyer {
+      margin: 0.25em 0;
+      padding: 0.5em;
+      background-color: #e0f7fa;
+      border: 1px dashed #00796b;
+    }
+
+    .nav-arrow {
+      position: fixed;
+      bottom: 30px;
+      font-size: 2.5rem;
+      color: white;
+      background: rgba(0, 0, 0, 0.5);
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      text-align: center;
+      line-height: 50px;
+      text-decoration: none;
+      transition: background 0.2s;
+      z-index: 999;
+    }
+
+    .nav-arrow:hover {
+      background: rgba(0, 0, 0);
+    }
+
+    .nav-arrow.left {
+      left: 30px;
+    }
+
+    .nav-arrow.right {
+      right: 30px;
+    }
+  </style>
+</head>
+<body>
+  <h1>3. Dwarves at the Gem Market</h1>
+
+  <div id="main-layout">
+    <img src="market.png" alt="Market image" id="market-image" />
+    <div class="game-box">
+      <div class="market">
+        <h2>Market Price: $<span id="marketPrice">0</span></h2>
+        <button onclick="changePrice(1)">Increase Price</button>
+        <button onclick="changePrice(-1)">Decrease Price</button>
+      </div>
+
+      <div>
+        <button onclick="addPair()">Add Buyer/Seller Pair</button>
+        <button onclick="endGame()">End Game</button>
+      </div>
+
+      <div class="pairs">
+        <h3>Buyer/Seller Pairs</h3>
+        <div id="pairsContainer"></div>
+      </div>
+
+      <div id="result"></div>
+      <div id="secondaryGame"></div>
+
+      <div id="chartContainer">
+        <canvas id="supplyDemandChart" width="800" height="400"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <a class="nav-arrow left" href="house-repairs.html">&#8592;</a>
+  <a class="nav-arrow right" href="cover.html">&#8594;</a>
+
+  <script>
+    let pairs = [];
+    let originalPairs = [];
+    let marketPrice = 0;
+    let chart;
+
+    function addPair() {
+      if (pairs.length >= 10) return;
+      const buyerValue = Math.floor(Math.random() * 12) + 1;
+      const sellerCost = Math.floor(Math.random() * 12) + 1;
+      pairs.push({ buyerValue, sellerCost });
+      updatePairsDisplay();
+    }
+
+    function updatePairsDisplay() {
+      const container = document.getElementById("pairsContainer");
+      container.innerHTML = "";
+      pairs.forEach((pair, index) => {
+        const div = document.createElement("div");
+        div.className = "pair";
+        div.textContent = `Pair ${index + 1}: Buyer Value = $${pair.buyerValue}, Seller Cost = $${pair.sellerCost}`;
+        container.appendChild(div);
+      });
+    }
+
+    function changePrice(amount) {
+      marketPrice += amount;
+      document.getElementById("marketPrice").textContent = marketPrice;
+    }
+
+    function endGame() {
+      originalPairs = JSON.parse(JSON.stringify(pairs));
+      let consumerSurplus = 0;
+      let producerSurplus = 0;
+      let maxSurplus = 0;
+
+      for (let price = 0; price <= 20; price++) {
+        let surplus = 0;
+        pairs.forEach(pair => {
+          if (price <= pair.buyerValue && price >= pair.sellerCost) {
+            surplus += (pair.buyerValue - price) + (price - pair.sellerCost);
+          }
+        });
+        if (surplus > maxSurplus) maxSurplus = surplus;
+      }
+
+      pairs.forEach(pair => {
+        if (marketPrice <= pair.buyerValue && marketPrice >= pair.sellerCost) {
+          consumerSurplus += pair.buyerValue - marketPrice;
+          producerSurplus += marketPrice - pair.sellerCost;
+        }
+      });
+
+      const totalSurplus = consumerSurplus + producerSurplus;
+
+      document.getElementById("result").innerHTML = `
+        <h3>Game Over!</h3>
+        <p>Consumer Surplus: $${consumerSurplus}</p>
+        <p>Producer Surplus: $${producerSurplus}</p>
+        <p><strong>Total Surplus: $${totalSurplus}</strong></p>
+        <p><strong>Maximum Possible Surplus: $${maxSurplus}</strong></p>
+        <button onclick="startSecondaryGame()">Try Optimizing with Reassignment</button>
+      `;
+
+      drawSupplyDemandChart();
+    }
+
+    function drawSupplyDemandChart() {
+      const ctx = document.getElementById('supplyDemandChart').getContext('2d');
+      const buyerValues = pairs.map(p => p.buyerValue).sort((a, b) => b - a);
+      const sellerCosts = pairs.map(p => p.sellerCost).sort((a, b) => a - b);
+      const maxLength = Math.max(buyerValues.length, sellerCosts.length);
+      const quantities = Array.from({ length: maxLength }, (_, i) => i + 1);
+
+      const demandData = quantities.map((_, i) => buyerValues[i] ?? null);
+      const supplyData = quantities.map((_, i) => sellerCosts[i] ?? null);
+      const marketData = quantities.map(() => marketPrice);
+
+      const data = {
+        labels: quantities,
+        datasets: [
+          {
+            label: 'Demand',
+            data: demandData,
+            borderColor: 'blue',
+            stepped: true,
+            fill: false
+          },
+          {
+            label: 'Supply',
+            data: supplyData,
+            borderColor: 'green',
+            stepped: true,
+            fill: false
+          },
+          {
+            label: 'Market Price',
+            data: marketData,
+            borderColor: 'red',
+            borderDash: [5, 5],
+            fill: false
+          }
+        ]
+      };
+
+      const config = {
+        type: 'line',
+        data: data,
+        options: {
+          responsive: true,
+          plugins: {
+            title: {
+              display: true,
+              text: 'Supply and Demand Chart'
+            }
+          },
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: 'Quantity'
+              }
+            },
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Price'
+              }
+            }
+          }
+        }
+      };
+
+      if (chart) chart.destroy();
+      chart = new Chart(ctx, config);
+    }
+
+    function startSecondaryGame() {
+      const container = document.getElementById("secondaryGame");
+      container.innerHTML = "";
+
+      const buyerValues = originalPairs.map(p => p.buyerValue).sort((a, b) => b - a);
+      const sellerCosts = originalPairs.map(p => p.sellerCost);
+
+      let html = `<h3>Reassign Sellers to Buyers</h3><div class='secondary-container'>`;
+      html += `<div class='buyers'>`;
+      buyerValues.forEach((val, i) => {
+        html += `<div class='buyer' data-buyer='${val}' ondrop='handleDrop(event)' ondragover='event.preventDefault()'>Buyer ($${val})</div>`;
+      });
+      html += `</div><div class='sellers'>`;
+      sellerCosts.forEach((val, i) => {
+        html += `<div class='seller' draggable='true' ondragstart='event.dataTransfer.setData("text", event.target.id)' id='seller-${i}' data-cost='${val}'>Seller ($${val})</div>`;
+      });
+      html += `</div></div><button onclick='endSecondaryGame()'>End Secondary Game</button>`;
+
+      container.innerHTML = html;
+    }
+
+    function handleDrop(event) {
+      event.preventDefault();
+      const data = event.dataTransfer.getData("text");
+      const dragged = document.getElementById(data);
+      event.target.appendChild(dragged);
+    }
+
+    function endSecondaryGame() {
+      const buyers = document.querySelectorAll('.buyer');
+      pairs = [];
+      buyers.forEach(buyerEl => {
+        const buyerValue = parseInt(buyerEl.dataset.buyer);
+        const sellerEl = buyerEl.querySelector('.seller');
+        if (sellerEl) {
+          const sellerCost = parseInt(sellerEl.dataset.cost);
+          pairs.push({ buyerValue, sellerCost });
+        }
+      });
+
+      let consumerSurplus = 0;
+      let producerSurplus = 0;
+
+      pairs.forEach(pair => {
+        if (marketPrice <= pair.buyerValue && marketPrice >= pair.sellerCost) {
+          consumerSurplus += pair.buyerValue - marketPrice;
+          producerSurplus += marketPrice - pair.sellerCost;
+        }
+      });
+
+      const totalSurplus = consumerSurplus + producerSurplus;
+
+      const sortedBuyers = [...pairs.map(p => p.buyerValue)].sort((a, b) => b - a);
+      const sortedSellers = [...pairs.map(p => p.sellerCost)].sort((a, b) => a - b);
+      let maxSurplus = 0;
+      for (let i = 0; i < Math.min(sortedBuyers.length, sortedSellers.length); i++) {
+        if (sortedBuyers[i] >= sortedSellers[i]) {
+          maxSurplus += sortedBuyers[i] - sortedSellers[i];
+        }
+      }
+
+      document.getElementById("result").innerHTML += `
+        <h3>Secondary Game Results</h3>
+        <p>Consumer Surplus: $${consumerSurplus}</p>
+        <p>Producer Surplus: $${producerSurplus}</p>
+        <p><strong>Final Total Surplus: $${totalSurplus}</strong></p>
+        <p><strong>Final Maximum Possible Surplus: $${maxSurplus}</strong></p>
+      `;
+      drawSupplyDemandChart();
+    }
+  </script>
+</body>
+</html>
