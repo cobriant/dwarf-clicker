@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bertrand Competition Clicker</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background-color: #f0f0f0;
+      display: flex;
+      gap: 20px;
+    }
+    h1 {
+      color: #333;
+    }
+    input[type="number"] {
+      padding: 5px;
+      font-size: 1rem;
+      width: 80px;
+    }
+    button {
+      padding: 8px 12px;
+      margin-top: 10px;
+      font-size: 1rem;
+    }
+    #log {
+      margin-top: 20px;
+      padding: 10px;
+      background: #fff;
+      border: 1px solid #ccc;
+      max-width: 500px;
+    }
+    #controls {
+      margin-top: 20px;
+    }
+    #game-container {
+      display: flex;
+      flex-direction: column;
+    }
+    .nav-arrow {
+      position: fixed;
+      bottom: 30px;
+      font-size: 2.5rem;
+      color: white;
+      background: rgba(0, 0, 0, 0.5);
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      text-align: center;
+      line-height: 50px;
+      text-decoration: none;
+      transition: background 0.2s;
+      z-index: 999;
+    }
+    .nav-arrow:hover {
+      background: rgba(0, 0, 0);
+    }
+    .nav-arrow.left {
+      left: 30px;
+    }
+    .nav-arrow.right {
+      right: 30px;
+    }
+  </style>
+</head>
+<body>
+  <img src="bertrand.png" alt="Bertrand Competition" style="width: 500px; height: 300px;" />
+  <div id="game-container">
+    <h1>4. Bertrand Competition: Ironarm vs Stonebeard</h1>
+    <h3>Demand function: P = 10 - Q</h3>
+    <div id="log"></div>
+    <div id="controls">
+      <p>Enter your price (1-10):</p>
+      <input type="number" id="priceInput" min="1" max="10" />
+      <button onclick="submitPrice()">Submit Price</button>
+      <button id="restartButton" onclick="restartGame()" style="display:none">Restart Game</button>
+    </div>
+  </div>
+
+  <a class="nav-arrow left" href="supply-demand.html">←</a>
+  <a class="nav-arrow right" href="index.html">→</a>
+
+  <script>
+    let yourTotalProfit = 0;
+    let stonebeardTotalProfit = 0;
+    let stonebeardPrice = null;
+    let gameOver = false;
+
+    function logMessage(msg) {
+      const logDiv = document.getElementById('log');
+      logDiv.innerHTML += `<p>${msg}</p>`;
+    }
+
+    function submitPrice() {
+      if (gameOver) return;
+
+      const price = parseInt(document.getElementById('priceInput').value);
+      if (isNaN(price) || price < 1 || price > 10) {
+        alert("Enter a valid price between 1 and 10.");
+        return;
+      }
+
+      let Q = 10 - price;
+      let profit = 0;
+
+      if (stonebeardPrice === null || price < stonebeardPrice) {
+        profit = Q * price;
+        yourTotalProfit += profit;
+        logMessage(`You set P=${price}. You sell Q=${Q}. You profit $${profit}.`);
+
+        if (price <= 1) {
+          endGame();
+          return;
+        }
+
+        stonebeardPrice = price - 1;
+        if (stonebeardPrice < 1) stonebeardPrice = 1;
+        let stoneQ = 10 - stonebeardPrice;
+        let stoneProfit = stoneQ * stonebeardPrice;
+        stonebeardTotalProfit += stoneProfit;
+        logMessage(`Stonebeard undercuts to P=${stonebeardPrice}. They sell Q=${stoneQ}. They profit $${stoneProfit}.`);
+        logMessage(`Your move: Set a new price below ${stonebeardPrice} to regain the market.`);
+
+      } else if (price > stonebeardPrice) {
+        let stoneQ = 10 - stonebeardPrice;
+        let stoneProfit = stoneQ * stonebeardPrice;
+        stonebeardTotalProfit += stoneProfit;
+        logMessage(`You set P=${price}. Stonebeard still wins with P=${stonebeardPrice}. You profit $0. Stonebeard profits $${stoneProfit}.`);
+        logMessage(`Try again: Set a price below ${stonebeardPrice}.`);
+
+      } else if (price === stonebeardPrice) {
+        let sharedQ = (10 - price) / 2;
+        let sharedProfit = sharedQ * price;
+        yourTotalProfit += sharedProfit;
+        stonebeardTotalProfit += sharedProfit;
+        logMessage(`Both set P=${price}. You each sell Q=${sharedQ}. You profit $${sharedProfit}.`);
+        logMessage(`Hint: Undercutting might help you take the whole market.`);
+
+        // Stonebeard undercuts after tie
+        stonebeardPrice = price - 1;
+        if (stonebeardPrice < 1) stonebeardPrice = 1;
+        let stoneQ = 10 - stonebeardPrice;
+        let stoneProfit = stoneQ * stonebeardPrice;
+        stonebeardTotalProfit += stoneProfit;
+        logMessage(`Stonebeard undercuts after tie to P=${stonebeardPrice}. They sell Q=${stoneQ}. They profit $${stoneProfit}.`);
+        logMessage(`Your move: Set a new price below ${stonebeardPrice} to regain the market.`);
+      }
+
+      if (price <= 1 || stonebeardPrice <= 1) {
+        endGame();
+      }
+    }
+
+    function endGame() {
+      gameOver = true;
+      let finalScore = yourTotalProfit - stonebeardTotalProfit;
+      logMessage(`<strong>Game Over!</strong> Your total profit: $${yourTotalProfit}. Stonebeard's profit: $${stonebeardTotalProfit}.`);
+      logMessage(`<strong>Your final score (your profit - Stonebeard's): $${finalScore}</strong>`);
+      document.getElementById('restartButton').style.display = 'inline-block';
+    }
+
+    function restartGame() {
+      yourTotalProfit = 0;
+      stonebeardTotalProfit = 0;
+      stonebeardPrice = null;
+      gameOver = false;
+      document.getElementById('log').innerHTML = '';
+      document.getElementById('restartButton').style.display = 'none';
+    }
+  </script>
+</body>
+</html>
